@@ -1,0 +1,229 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <title>Presto</title>
+  
+  <script type='text/javascript' src='//library.oregonmetro.gov/libraries/leaflet/0.7.3/leaflet.js'></script>
+  <script type='text/javascript' src='//library.oregonmetro.gov/libraries/jquery/1.9.1/jquery.min.js'></script>
+  <script src='js/leaflet-omnivore.min.js'></script>
+  <link rel='stylesheet' href="//library.oregonmetro.gov/libraries/leaflet/0.7.3/leaflet.css"/>
+
+  <script>
+    var map, throttle = 1, redtlids = [], greentlids = [];
+    var rainbow_index=0;
+
+    function init() {
+
+       $.fn.rainbow = function(options) {
+    this.each(function() {
+    
+      options.originalText = $(this).html();
+      options.iterations = 0;
+      if (!options.pauseLength) {
+        options.pauseLength = options.animateInterval;
+      }
+      $(this).data('options',options);
+      
+      if (options.pad) {
+      
+        for (x = 0; x < options.originalText.length; x++) {
+          options.colors.unshift(options.colors[options.colors.length-1]);
+        }
+      }
+      
+      $.fn.rainbow.render(this);    
+      
+    });
+  }
+
+  $.fn.pauseRainbow = function() {
+    this.each(function() {
+      var options = $(this).data('options');
+      if (options) {
+        options.animate = false;
+        $(this).data('options',options);    
+      }
+    });
+  }
+
+
+  $.fn.resumeRainbow = function() {
+    this.each(function() {
+      var options = $(this).data('options');
+      if (options) {
+        options.animate = true;
+        $(this).data('options',options);    
+        $.fn.rainbow.render(this);
+      }
+    });
+  }
+
+    
+  $.fn.rainbow.render = function(obj) {
+  
+      var options = $(obj).data('options');
+      var chars = options.originalText.split('');
+
+      options.iterations++;
+        
+      var newstr = '';
+      var counter = 0;
+      for (var x in chars) {
+      
+        if (chars[x]!=' ') {
+          newstr = newstr + '<span style="color: ' + options.colors[counter] + ';">' + chars[x] + '</span>';
+          counter++;
+        } else {
+          newstr = newstr + ' ';
+        
+        }
+      
+      
+        if (counter >= options.colors.length) {
+          counter = 0;
+        }
+      }
+      $(obj).html(newstr);
+  
+      var pause = (options.iterations % options.colors.length == 0);
+      
+
+
+      if (options.animate) {
+      
+        (
+          function(obj,interval) {
+            var options = $(obj).data('options');
+            var i = setTimeout(function() {
+              $.fn.rainbow.shift(obj);
+            },interval);
+            options.interval = i;
+            $(obj).data('options',options);
+          }
+        )(obj,pause?options.pauseLength:options.animateInterval);
+      } 
+
+      
+  }
+  
+  
+  $.fn.rainbow.shift = function(obj) {
+  
+    var options = $(obj).data('options');
+    var color = options.colors.pop();
+    options.colors.unshift(color);
+    $.fn.rainbow.render(obj);
+  
+  }
+  
+    $('#foo').rainbow({animate:true,animateInterval:300,colors:RAINBOW});
+
+      var osm = new L.TileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        zIndex: 10
+      });
+
+      map = new L.Map('map', {
+        center: new L.LatLng(39.828127, -98.579404),
+        zoom: 5,
+        minZoom: 0,
+        maxZoom: 19,
+        layers: [osm]
+      });
+
+      var basemaps = L.Control.extend({
+        options: {
+          position: 'topleft'
+        },
+
+        onAdd: function (map) {
+          var basemapcontainer = L.DomUtil.get('engage');
+          L.DomEvent.disableClickPropagation(basemapcontainer);
+          return basemapcontainer;
+        }
+      });
+
+      map.addControl(new basemaps());
+
+      $("#map").bind("contextmenu", function () {
+        return false;
+      });
+
+      var redLayer = L.geoJson(null, {
+        // http://leafletjs.com/reference.html#geojson-style
+        style: function (feature) {
+          rainbow_index += 1;
+          if (rainbow_index > 15) {
+            rainbow_index = 0;
+          }
+          return { color: RAINBOW[rainbow_index], fillColor: RAINBOW[rainbow_index], fillOpacity: .5 };
+        }
+      }).addTo(map);
+
+      document.getElementById('btnClear').addEventListener('click', function() {
+        redLayer.clearLayers();
+        redtlids = []; //clear out
+      });
+
+        map.on('mousemove', function (e) {
+          
+          if (e.originalEvent.buttons == 2 || e.originalEvent.which==3) {
+            if (throttle % 2 == 0) {
+              $.getJSON('identify/taxlots/?x=' + e.latlng.lng + '&y=' + e.latlng.lat, function(data) {
+                if (data.error) {
+                  return;
+                }
+
+                if (redtlids.indexOf(data.TLID) == -1) {
+                  omnivore.wkt.parse(data.geom, null, redLayer);
+                  //omnivore.wkt.parse(data.geom).addTo(map);
+                  redtlids.push(data.TLID);
+                }
+
+              });
+            }
+            throttle += 1;
+          }
+        });
+    }
+
+    var RAINBOW = [
+      '#ED1C24',
+      '#F26522',
+      '#F7941D',
+      '#FFF200',
+      '#8DC73F',
+      '#39B54A',
+      '#00A651',
+      '#00A99D',
+      '#00AEEF',
+      '#0072BC',
+      '#0054A6',
+      '#2E3192',
+      '#662D91',
+      '#92278F',
+      '#EC008C',
+      '#ED145B'
+    ];
+
+  </script>
+  <style>
+    body, html {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+
+</head>
+<body onload='init();'>
+
+  <div id="map" style='width:100%;height:100%;'></div>
+  <div id='foo' style='font-family:Arial;font-size:40px;position:absolute;top:10px;left:100px;z-index:100;'>Hold down right mouse button and paint census tracts</div>
+  <div id="engage">
+   
+    <button id='btnClear'>Clearance</button>
+  </div>
+</body>
+</html>
